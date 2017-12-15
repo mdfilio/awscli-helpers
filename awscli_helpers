@@ -106,7 +106,7 @@ function aws-upload-iam-certificate() {
   read -p 'private-key (path to file): ' private_key
   read -p 'certificate-chain (path to file): ' certificate_chain
 
-  aws iam upload-server-certificate --server-certificate-name "$server_certificate_name{}" \
+  aws iam upload-server-certificate --server-certificate-name "{$server_certificate_name}" \
     --private-key "file://${private_key}" \
     --certificate-body "file://${certificate_body}" \
     --certificate-chain "file://${certificate_chain}"
