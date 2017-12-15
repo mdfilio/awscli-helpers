@@ -1,0 +1,115 @@
+#!/bin/bash
+#
+###############################################################################
+###############################################################################
+#
+#
+#  Wrapper functions to make common awscli tasks easier
+#  https://github.com/mdfilio/awscli-helpers
+#
+#  Licensed under the MIT License
+#
+#  Copyright (c) 2017 Michael Filio
+#
+#  
+#
+#  Depends on: 
+#    awscli - http://docs.aws.amazon.com/cli/latest/userguide/installing.html
+#        python3 recommended
+#    jq - https://stedolan.github.io/jq/ (1.5)
+#
+#
+#  Notes: 
+#    * The functions assume region for the service is set via aws-set-region
+#
+###############################################################################
+###############################################################################
+
+
+#########
+#
+#  http://docs.aws.amazon.com/cli/latest/userguide/cli-environment.html
+#   
+#  AWS_REGION is set as go-aws-sdk uses it
+#  http://docs.aws.amazon.com/sdk-for-go/api/
+#  
+#
+#########
+function aws-set-region() {
+  export AWS_REGION="$1"
+  export AWS_DEFAULT_REGION="$1"
+}
+
+
+function aws-get-cf-stacks() {
+  aws cloudformation describe-stacks --query 'Stacks[*].StackName' \
+    | jq '.[]' \
+    | tr -d '"'
+}
+
+
+#########
+#
+#   Note: python2 version of awscli does not preserve order as seen
+#         in aws console as of 12/15/2017
+#
+#########
+function aws-get-cf-template() {
+  local stack_name
+  stack_name="$1"
+  aws cloudformation get-template --stack-name "${stack_name}" \
+    | jq .TemplateBody
+}
+
+
+
+function aws-get-cf-parameters() {
+  local stack_name
+  stack_name="$1"
+  aws cloudformation describe-stacks --stack-name "${stack_name}" \
+    --query 'Stacks[*].Parameters' \
+    | jq '.[]' \
+    | jq -s '.[] | sort_by(.ParameterKey)'
+}
+
+
+#########
+#
+#   Works for ELBv1, ELBv2 (application), and ELBv2 (network)
+#
+#########
+function aws-get-lb-ips() {
+  aws ec2 describe-network-interfaces \
+    | jq '.[] 
+      | .[] 
+      | select( .InterfaceType=="network_load_balancer",
+                .Association.IpOwnerId=="amazon-elb"
+              ) 
+      | { Description: .Description, 
+          PublicIP: .PrivateIpAddresses[].Association.PublicIp, 
+          PrivateIP: .PrivateIpAddresses[].PrivateIpAddress, 
+          Subnet: .SubnetId, 
+          AZ: .AvailabilityZone, 
+          VPC: .VpcId 
+        }' \
+    | jq -s 'sort_by(.Description)'
+}
+
+
+
+function aws-upload-iam-certificate() {
+  local server_certificate_name certificate_body
+  local private_key certificate_chain
+
+  read -p 'server-certificate-name: ' server_certificate_name
+  read -p 'certificate-body (path to file): ' certificate_body
+  read -p 'private-key (path to file): ' private_key
+  read -p 'certificate-chain (path to file): ' certificate_chain
+
+  aws iam upload-server-certificate --server-certificate-name "$server_certificate_name{}" \
+    --private-key "file://${private_key}" \
+    --certificate-body "file://${certificate_body}" \
+    --certificate-chain "file://${certificate_chain}"
+}
+
+
